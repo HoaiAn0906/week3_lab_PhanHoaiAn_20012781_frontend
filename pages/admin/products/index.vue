@@ -25,49 +25,33 @@ const search = ref('')
 const dialog = ref(false)
 const valid = ref(true)
 const editedIndex = ref(-1)
-const files = ref([])
-const readers = ref([])
-const fileValue = ref(null)
 const { $api } = useNuxtApp()
 const loading = ref(false)
 const toast = useToast()
 const queryClient = useQueryClient()
+const company_choices = ref([])
+const skills_choices = ref([])
 
 const headers = [
   {
-    title: 'Name',
+    title: 'Job Name',
     align: 'start',
-    key: 'name',
+    key: 'jobName',
   },
   {
-    title: 'Image',
+    title: 'Job Desc',
     align: 'center',
-    key: 'productImages',
+    key: 'jobDesc',
   },
   {
-    title: 'Manufacturer name',
+    title: 'Skills',
     align: 'start',
-    key: 'manufacturer',
+    key: 'skills',
   },
   {
-    title: 'Unit',
+    title: 'Company',
     align: 'start',
-    key: 'unit',
-  },
-  {
-    title: 'Description',
-    align: 'start',
-    key: 'description',
-  },
-  {
-    title: 'Price',
-    align: 'start',
-    key: 'lastPrice',
-  },
-  {
-    title: 'Status',
-    align: 'start',
-    key: 'status',
+    key: 'company.comp_name',
   },
   {
     title: 'Action',
@@ -78,28 +62,19 @@ const headers = [
 
 const editedItem = ref({
   id: null,
-  name: '',
-  manufacturer_name: '',
-  unit: 'PIECE',
-  description: '',
-  status: 'ACTIVE',
-  price: 0,
-  image: null,
+  jobName: '',
+  jobDesc: '',
+  company: null,
+  skills: [],
 })
 
 const defaultItem = ref({
   id: null,
-  name: '',
-  manufacturer_name: '',
-  unit: '',
-  description: '',
-  status: '',
-  price: 0,
-  image: null,
+  jobName: '',
+  jobDesc: '',
+  company: null,
+  skills: [],
 })
-
-const selectStatus = ['ACTIVE', 'INACTIVE']
-const selectUnit = ['KG', 'LITER', 'PIECE']
 
 const queryBuilder = ref({
   filters: {
@@ -125,21 +100,13 @@ const updateItemsPerPage = (itemsPerPage) => {
 }
 
 const formTitle = computed(() => {
-  return editedIndex.value === -1 ? 'New Product' : 'Edit Product'
+  return editedIndex.value === -1 ? 'New Job' : 'Edit Job'
 })
 
 const save = () => {
   loading.value = true
   //form data
-  let formData = new FormData()
-  formData.append('name', editedItem.value.name)
-  formData.append('manufacturer_name', editedItem.value.manufacturer_name)
-  formData.append('unit', editedItem.value.unit)
-  formData.append('description', editedItem.value.description)
-  formData.append('price', editedItem.value.price)
-  formData.append('status', editedItem.value.status)
-  formData.append('image', files.value[0])
-  $api.products.createProduct(formData)
+  $api.jobs.createJob(editedItem.value)
       .then((res) => {
         console.log(res)
       })
@@ -148,7 +115,7 @@ const save = () => {
       })
       .finally(() => {
         loading.value = false
-        queryClient.invalidateQueries('products')
+        queryClient.invalidateQueries('jobs')
       })
   close()
 }
@@ -161,22 +128,13 @@ const close = () => {
   }, 300)
 }
 
-const addFiles = (e) => {
-  files.value.forEach((file, f) => {
-    readers.value[f] = new FileReader();
-    readers.value[f].onloadend = (e) => {
-      let fileData = readers.value[f].result
-      let imgRef = fileValue.value[f]
-      imgRef.src = fileData
-    }
-
-    readers.value[f].readAsDataURL(files.value[f]);
-  })
-}
-
 const editItem = (item) => {
   editedIndex.value = items.value.indexOf(item)
   editedItem.value = Object.assign({}, item)
+  editedItem.value.company = item.company.id
+  editedItem.value.skills = item.skills.map((item) => {
+    return item.id
+  })
   dialog.value = true
 }
 
@@ -184,7 +142,7 @@ const deleteItem = (item) => {
   if (confirm('Are you sure you want to delete this item?') === false) {
     return false;
   } else {
-    $api.products.deleteProduct(item.id)
+    $api.jobs.deleteJob(item.id)
         .then((res) => {
           toast.success(res.message)
         })
@@ -192,10 +150,47 @@ const deleteItem = (item) => {
           console.log(err)
         })
         .finally(() => {
-          queryClient.invalidateQueries('products')
+          queryClient.invalidateQueries('jobs')
         })
   }
 }
+
+const featCompanies = async () => {
+  const params = {
+    page: 1,
+    limit: 100,
+  }
+
+  $api.companies.getCompanies(params)
+      .then((res) => {
+        company_choices.value = res.data?.content?.map((item) => {
+          return {
+            title: item.compName,
+            value: item.id,
+          }
+        })
+      })
+      .catch((err) => {
+        console.log(err)
+      })
+
+  $api.skills.getSkills(params)
+      .then((res) => {
+        skills_choices.value = res.data?.content?.map((item) => {
+          return {
+            title: item.skillName,
+            value: item.id,
+          }
+        })
+      })
+      .catch((err) => {
+        console.log(err)
+      })
+}
+
+onMounted(() => {
+  featCompanies()
+})
 </script>
 
 <template>
@@ -206,7 +201,7 @@ const deleteItem = (item) => {
       <template #activator="{ props }">
         <v-btn v-bind="props" class="ml-auto" color="primary" flat :loading="loading">
           <v-icon class="mr-2">mdi-cart-plus</v-icon>
-          Add Contact
+          Add Job
         </v-btn>
       </template>
       <v-card>
@@ -218,53 +213,16 @@ const deleteItem = (item) => {
           <v-form ref="form" v-model="valid" lazy-validation>
             <v-row>
               <v-col cols="12" sm="6">
-                <v-text-field v-model="editedItem.name" hide-details label="Name" variant="outlined"/>
+                <v-text-field v-model="editedItem.jobName" hide-details label="Job Name" variant="outlined"/>
               </v-col>
               <v-col cols="12" sm="6">
-                <v-text-field v-model="editedItem.manufacturer_name" hide-details label="Manufacturer Name"
-                              variant="outlined"/>
-              </v-col>
-              <v-col cols="12" sm="6">
-                <v-select
-                    v-model="editedItem.unit"
-                    hide-details
-                    :items="selectUnit"
-                    label="Unit"
-                    variant="outlined"
-                />
-              </v-col>
-              <v-col cols="12" sm="6">
-                <v-text-field v-model="editedItem.description" hide-details label="Description" variant="outlined"/>
-              </v-col>
-              <v-col cols="12" sm="6">
-                <v-text-field v-model="editedItem.price" hide-details label="Price" variant="outlined" type="number"/>
-              </v-col>
-              <v-col cols="12" sm="6">
-                <v-select
-                    v-model="editedItem.status"
-                    hide-details
-                    :items="selectStatus"
-                    label="Status"
-                    variant="outlined"
-                />
+                <v-select v-model="editedItem.company" :items="company_choices" hide-details label="Company" variant="outlined"/>
               </v-col>
               <v-col cols="12">
-                <v-file-input
-                    accept="image/*"
-                    label="Select files"
-                    prepend-icon="mdi-camera"
-                    multiple
-                    chips
-                    color="pink"
-                    v-model="files"
-                    @change="addFiles"
-                ></v-file-input>
+                <v-select v-model="editedItem.skills" :items="skills_choices" multiple hide-details label="Skills" variant="outlined"/>
               </v-col>
-            </v-row>
-            <v-row>
-              <v-col cols="2" v-for="(file,f) in files" :key="f">
-                {{ file.name }}
-                <img :ref="'fileValue'" src="//placehold.it/400/99cc77" class="img-fluid tw-w-[100px] tw-h-[100px]" :title="'file' + f"/>
+              <v-col cols="12">
+                <v-textarea v-model="editedItem.jobDesc" hide-details label="Job Desc" variant="outlined"/>
               </v-col>
             </v-row>
           </v-form>
@@ -304,25 +262,16 @@ const deleteItem = (item) => {
           ></v-text-field>
         </template>
 
-        <template v-slot:item.productImages="{ item }">
-          <div class="p-2" v-for="(productImage,i) in item.selectable.productImages" :key="i">
-            <v-img :src="productImage.path" :alt="productImage.path" height="100px"></v-img>
+        <template v-slot:item.skills="{ item }">
+          <div class="p-2" v-for="(skill,i) in item.selectable.skills" :key="i">
+            <v-chip color="primary" text-color="white" small>{{ skill.skillName }}</v-chip>
           </div>
         </template>
 
-        <template v-slot:item.lastPrice="{ item }">
-          <span class="tw-font-normal">
-            {{ filters.currency(item.selectable.lastPrice) }}
-          </span>
-        </template>
-
-        <template v-slot:item.status="{ item }">
-          <v-chip
-              :color="item.status === 'ACTIVE' ? 'success' : 'error'"
-              dark
-          >
-            {{ item.selectable.status }}
-          </v-chip>
+        <template v-slot:item.jobDesc="{ item }">
+          <div>
+            {{ item.selectable.jobDesc.substring(0, 50) }}...
+          </div>
         </template>
 
         <template v-slot:item.action="{ item }">

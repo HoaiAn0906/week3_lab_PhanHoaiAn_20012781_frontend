@@ -39,7 +39,7 @@ const successsnackbar = ref(false)
             <v-img :src="'https://picsum.photos/500/500'" />
           </v-avatar>
 
-          <h4 class="ml-2">{{ job.company.comp_name }}</h4>
+          <h4 class="ml-2">{{ job.company.compName }}</h4>
         </div>
         <v-divider class="mt-2" />
         <div class="tw-flex tw-items-center mt-2">
